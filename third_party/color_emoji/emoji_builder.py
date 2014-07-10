@@ -22,6 +22,15 @@ import sys, struct, StringIO
 from png import PNG
 
 
+def get_glyph_name_from_gsub (string, font, cmap_dict):
+	ligatures = font['GSUB'].table.LookupList.Lookup[0].SubTable[0].ligatures
+	first_glyph = cmap_dict[ord (string[0])]
+	rest_of_glyphs = [cmap_dict[ord (ch)] for ch in string[1:]]
+	for ligature in ligatures[first_glyph]:
+		if ligature.Component == rest_of_glyphs:
+			return ligature.LigGlyph
+
+
 def div (a, b):
 	return int (round (a / float (b)))
 
@@ -436,26 +445,34 @@ By default they are dropped.
 		glb = "%s*.png" % img_prefix
 		print "Looking for images matching '%s'." % glb
 		for img_file in glob.glob (glb):
-			uchar = int (img_file[len (img_prefix):-4], 16)
-			img_files[uchar] = img_file
+			codes = img_file[len (img_prefix):-4]
+			if "_" in codes:
+				pieces = codes.split ("_")
+				uchars = "".join ([unichr (int (code, 16)) for code in pieces])
+			else:
+				uchars = unichr (int (codes, 16))
+			img_files[uchars] = img_file
 		if not img_files:
 			raise Exception ("No image files found in '%s'." % glb)
 		print "Found images for %d characters in '%s'." % (len (img_files), glb)
 
 		glyph_imgs = {}
 		advance = width = height = 0
-		for uchar, img_file in img_files.items ():
-			if uchar in unicode_cmap.cmap:
-				glyph_name = unicode_cmap.cmap[uchar]
-				glyph_id = font.getGlyphID (glyph_name)
-				glyph_imgs[glyph_id] = img_file
-				if "verbose" in options:
-					print "Matched U+%04X: id=%d name=%s image=%s" % (uchar, glyph_id, glyph_name, img_file)
+		for uchars, img_file in img_files.items ():
+			if len (uchars) == 1:
+				glyph_name = unicode_cmap.cmap[ord (uchars)]
+			else:
+				glyph_name = get_glyph_name_from_gsub (uchars, font, unicode_cmap.cmap)
+			glyph_id = font.getGlyphID (glyph_name)
+			glyph_imgs[glyph_id] = img_file
+			if "verbose" in options:
+				uchars_name = ",".join (["%04X" % ord (char) for char in uchars])
+				print "Matched U+%s: id=%d name=%s image=%s" % (uchars_name, glyph_id, glyph_name, img_file)
 
-				advance += glyph_metrics[glyph_name][0]
-				w, h = PNG (img_file).get_size ()
-				width += w
-				height += h
+			advance += glyph_metrics[glyph_name][0]
+			w, h = PNG (img_file).get_size ()
+			width += w
+			height += h
 
 		glyphs = sorted (glyph_imgs.keys ())
 		if not glyphs:
