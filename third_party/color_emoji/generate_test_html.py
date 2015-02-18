@@ -81,7 +81,7 @@ def main(argv):
   parser.add_argument('image_prefix', help='Location and prefix of image files.')
   parser.add_argument('-q', '--quiet', dest='v', help='quiet operation.',
                       action='store_const', const=0)
-  parser.add_argument('-v', '--verbose', dest='v', help='verbose operation.',
+  parser.add_argument('-v', '--verbose', dest='v', help='verbose operation.', default=1,
                       action='store_const', const=2)
   args = parser.parse_args(argv)
 

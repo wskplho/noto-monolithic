@@ -17,6 +17,26 @@
 import svg_cleaner
 
 class SvgBuilder(object):
+  """Modifies a font to add SVG glyphs from a document or string.  Once built you
+  can call add_from_filename or add_from_doc multiple times to add SVG
+  documents, which should contain a single root svg element representing the glyph.
+  This element must have width and height attributes (in px), these are used to
+  determine how to scale the glyph.  The svg should be designed to fit inside
+  this bounds and have its origin at the top left.  Adding the svg generates a
+  transform to scale and position the glyph, so the svg element should not have
+  a transform attribute since it will be overwritten.  Any id attribute on the
+  glyph is also overwritten.
+
+  Adding a glyph can generate additional default glyphs for components of a
+  ligature that are not already present.
+
+  It is possible to add SVG images to a font that already has corresponding
+  glyphs.  If a glyph exists already, then its hmtx advance is assumed valid.
+  Otherwise we will generate an advance based on the image's width and scale
+  factor.  Callers should ensure that glyphs for components of ligatures are
+  added before the ligatures themselves, otherwise glyphs generated for missing
+  ligature components will be assigned zero metrics metrics that will not be
+  overridden later."""
 
   def __init__(self, font_builder):
     font_builder.init_svg()
@@ -43,29 +63,15 @@ class SvgBuilder(object):
     string, svgdoc is the svg document xml.  The doc must have a single
     svg root element."""
 
-    # Adding a glyph can generate additional default glyphs for components of
-    # a ligature that are not already present.
-    #
-    # It is possible to add SVG images to a font that already has corresponding
-    # glyphs.  If a glyph exists already, then its hmtx advance is assumed
-    # valid.  Otherwise we will generate an advance based on the image's width
-    # and scale factor.  Callers should ensure that glyphs for components of
-    # ligatures are added before the ligatures themselves, otherwise glyphs
-    # generated for missing ligature components will be assigned zero metrics
-    # metrics that will not be overridden later.
-    #
     # The svg element must have an id attribute of the form 'glyphNNN' where NNN
     # is the glyph id.  We capture the index of the glyph we're adding and write
     # it into the svg.
     #
-    # We need to specify a transform attribute on the svg element to ensure it
-    # is properly scaled and translated.  We expect the image has a width and
-    # height specified by 'width' and 'height' attributes on the svg element,
-    # and a top left at the origin. We generate a transform that places the
-    # origin at the top left of the EM square and uniformly scales it to fit
-    # both the font height (ascent - descent) and glyph advance if it is already
-    # present.  The width and height attributes are not used by rendering, so
-    # they are removed from the element once we're done with them.
+    # We generate a transform that places the origin at the top left of the EM
+    # square and uniformly scales it to fit both the font height (ascent -
+    # descent) and glyph advance if it is already present.  The width and height
+    # attributes are not used by rendering, so they are removed from the element
+    # once we're done with them.
 
     cleaner = self.cleaner
     fbuilder = self.font_builder

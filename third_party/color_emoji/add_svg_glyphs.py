@@ -108,10 +108,7 @@ class FontBuilder(object):
     return "_".join(["u%04X" % ord(char) for char in string])
 
   def glyph_name_to_index(self, name):
-    for i in range(len(self.glyph_order)):
-      if self.glyph_order[i] == name:
-        return i
-    return -1
+    return self.glyph_order.index(name) if name in self.glyph_order else -1;
 
   def glyph_index_to_name(self, glyph_index):
     if glyph_index < len(self.glyph_order):
@@ -143,7 +140,7 @@ class FontBuilder(object):
       self.glyphs[name] = _g_l_y_f.Glyph()
 
   def add_components_and_ligature(self, glyphstr):
-    """Convert glyphstr to a name and chack if it already exists. If not, check if it is a
+    """Convert glyphstr to a name and check if it already exists. If not, check if it is a
     ligature (longer than one codepoint), and if it is, generate empty glyphs with cmap
     entries for any missing ligature components and add a ligature record.  Then generate
     an empty glyph for the name.  Return a tuple with the name, index, and a bool
@@ -173,6 +170,7 @@ class FontBuilder(object):
     svg_record = (doc, index, index) # startGlyphId, endGlyphId are the same
     self.svgs.append(svg_record)
 
+
 def collect_glyphstr_file_pairs(prefix, ext, verbosity):
   """Scan files with the given prefix and extension, and return a list of (glyphstr, filename)
   where glyphstr is the character or ligature, and filename is the image file associated
@@ -198,11 +196,13 @@ def collect_glyphstr_file_pairs(prefix, ext, verbosity):
     raise Exception ("No image files matching '%s'." % glob_pat)
   return image_files.items()
 
+
 def sort_glyphstr_tuples(glyphstr_tuples):
   """The list contains tuples whose first element is a string representing a character or
   ligature.  It is sorted with shorter glyphstrs first, then alphabetically. This ensures
   that ligature components are added to the font before any ligatures that contain them."""
   glyphstr_tuples.sort(key=lambda t: (len(t[0]), t[0]))
+
 
 def add_image_glyphs(in_file, out_file, pairs, verbosity):
   """Add images from pairs (glyphstr, filename) to .ttx file in_file and write
@@ -229,6 +229,7 @@ def add_image_glyphs(in_file, out_file, pairs, verbosity):
   if verbosity > 0:
     print "added %s images to %s" % (len(pairs), out_file)
 
+
 def main(argv):
   usage = """This will search for files that have image_prefix followed by one or more
       hex numbers (separated by underscore if more than one), and end in ".svg".
@@ -247,7 +248,7 @@ def main(argv):
   parser.add_argument('image_prefix', help="Location and prefix of image files.")
   parser.add_argument('--quiet', '-q', dest='v', help="quiet operation.",
                       action='store_const', const=0)
-  parser.add_argument('--verbose', '-v', dest='v', help="verbose operation.",
+  parser.add_argument('--verbose', '-v', dest='v', help="verbose operation.", default=1,
                       action='store_const', const=2)
   args = parser.parse_args(argv)
 
@@ -257,6 +258,7 @@ def main(argv):
 
   pairs = collect_glyphstr_file_pairs(args.image_prefix, 'svg', args.v)
   add_image_glyphs(args.in_file, args.out_file, pairs, args.v)
+
 
 if __name__ == '__main__':
   main(sys.argv[1:])
