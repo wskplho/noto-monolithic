@@ -144,6 +144,7 @@ class SvgCleaner(object):
 
     def _clean_text(self, node):
       text = node.text.strip()
+      # common case is text is empty (line endings between elements)
       if text:
         text = re.sub(r'\s+', ' ', text)
       node.text = text
@@ -190,6 +191,8 @@ class SvgCleaner(object):
           lines.append(''.join(line))
 
     def to_text(self, root):
+      # set up lines for recursive calls, let them append lines, then return
+      # the result.
       lines = []
       self._write_node(root, lines, 0)
       return '\n'.join(lines)
