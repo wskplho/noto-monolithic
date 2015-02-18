@@ -79,15 +79,11 @@ def main(argv):
   parser.add_argument('font_file', help='font file name with extension.')
   parser.add_argument('html_file', help='Output html file name.')
   parser.add_argument('image_prefix', help='Location and prefix of image files.')
-  parser.add_argument('-q', '--quiet', dest='v', help='quiet operation.',
+  parser.add_argument('-q', '--quiet', dest='v', help='quiet operation.', default=1,
                       action='store_const', const=0)
-  parser.add_argument('-v', '--verbose', dest='v', help='verbose operation.', default=1,
+  parser.add_argument('-v', '--verbose', dest='v', help='verbose operation.',
                       action='store_const', const=2)
   args = parser.parse_args(argv)
-
-  # find out the right way to do this
-  if args.v == None:
-    args.v = 1
 
   pairs = add_svg_glyphs.collect_glyphstr_file_pairs(args.image_prefix, 'svg', args.v)
   add_svg_glyphs.sort_glyphstr_tuples(pairs)

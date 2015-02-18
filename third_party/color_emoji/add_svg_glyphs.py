@@ -246,15 +246,11 @@ def main(argv):
   parser.add_argument('in_file', help="Input ttx file name.")
   parser.add_argument('out_file', help="Output ttx file name.")
   parser.add_argument('image_prefix', help="Location and prefix of image files.")
-  parser.add_argument('--quiet', '-q', dest='v', help="quiet operation.",
+  parser.add_argument('--quiet', '-q', dest='v', help="quiet operation.", default=1,
                       action='store_const', const=0)
-  parser.add_argument('--verbose', '-v', dest='v', help="verbose operation.", default=1,
+  parser.add_argument('--verbose', '-v', dest='v', help="verbose operation.",
                       action='store_const', const=2)
   args = parser.parse_args(argv)
-
-  # find out the right way to do this
-  if args.v == None:
-    args.v = 1
 
   pairs = collect_glyphstr_file_pairs(args.image_prefix, 'svg', args.v)
   add_image_glyphs(args.in_file, args.out_file, pairs, args.v)
