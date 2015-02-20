@@ -77,12 +77,12 @@ function setup() {
 </head>"""
 
   body_head = r"""<body onload="setup();">
-<p>Test for SVG glyphs in %s.  It uses the proposed
+<p>Test for SVG glyphs in %(font)s.  It uses the proposed
 <a href="http://lists.w3.org/Archives/Public/public-svgopentype/2013Jul/0003.html">SVG-in-OpenType format</a>.
 View using Firefox&nbsp;26 and later.
 <div style="float:left; text-align:center; margin:0 10px">
-<div id='panel' style="margin-left:auto; margin-right:auto">%s</div>
-<div id='paneltitle' style="margin-left:auto; margin-right:auto">0x1f451</div>
+<div id='panel' style="margin-left:auto; margin-right:auto">%(glyph)s</div>
+<div id='paneltitle' style="margin-left:auto; margin-right:auto">%(glyph_hex)s</div>
 </div>
 <div id='emoji'><p>"""
 
@@ -97,20 +97,25 @@ View using Firefox&nbsp;26 and later.
 
   found_initial_glyph = False
   initial_glyph_str = None;
+  initial_glyph_hex = None;
   text_parts = []
   for glyphstr, _ in pairs:
     name_parts = []
+    hex_parts = []
     for cp in glyphstr:
       hex_str = hex(ord(cp))
       name_parts.append('&#x%s;' % hex_str[2:])
+      hex_parts.append(hex_str)
     glyph_str = ''.join(name_parts)
 
     if not found_initial_glyph:
       if not glyph or glyph_str == glyph:
         initial_glyph_str = glyph_str
+        initial_glyph_hex = ' '.join(hex_parts)
         found_initial_glyph = True
       elif not initial_glyph_str:
         initial_glyph_str = glyph_str
+        initial_glyph_hex = ' '.join(hex_parts)
 
     text = '<span>%s</span>' % glyph_str
     text_parts.append(text)
@@ -121,7 +126,8 @@ View using Firefox&nbsp;26 and later.
     print "Using initial glyph '%s'" % initial_glyph_str
 
   lines = [header % font_name]
-  lines.append(body_head % (font_name, initial_glyph_str))
+  lines.append(body_head % {'font':font_name, 'glyph':initial_glyph_str,
+                            'glyph_hex':initial_glyph_hex})
   lines.extend(text_parts) # we'll end up with space between each emoji
   lines.append(body_tail)
   output = '\n'.join(lines)
