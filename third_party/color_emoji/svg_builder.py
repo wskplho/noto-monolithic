@@ -45,7 +45,8 @@ class SvgBuilder(object):
     self.cleaner = svg_cleaner.SvgCleaner()
 
     font = font_builder.font
-    self.font_height = font['hhea'].ascent - font['hhea'].descent
+    self.font_ascent = font['hhea'].ascent
+    self.font_height = self.font_ascent - font['hhea'].descent
     self.font_upem = font['head'].unitsPerEm
 
   def add_from_filename(self, ustr, filename):
@@ -67,8 +68,8 @@ class SvgBuilder(object):
     # is the glyph id.  We capture the index of the glyph we're adding and write
     # it into the svg.
     #
-    # We generate a transform that places the origin at the top left of the EM
-    # square and uniformly scales it to fit both the font height (ascent -
+    # We generate a transform that places the origin at the top left of the
+    # ascent and uniformly scales it to fit both the font height (ascent -
     # descent) and glyph advance if it is already present.  The width and height
     # attributes are not used by rendering, so they are removed from the element
     # once we're done with them.
@@ -94,7 +95,7 @@ class SvgBuilder(object):
         if hscale < scale:
           scale = hscale
 
-    transform = 'translate(0, -%s) scale(%s)' % (self.font_upem, scale)
+    transform = 'translate(0, -%s) scale(%s)' % (self.font_ascent, scale)
     tree.attrs['transform'] = transform
 
     svgdoc = cleaner.tree_to_text(tree)

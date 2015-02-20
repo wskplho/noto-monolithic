@@ -17,77 +17,174 @@
 
 import argparse
 import os
+import os.path
+import re
 import sys
+
+from fontTools import ttx
 
 import add_svg_glyphs
 
-def do_generate_test_html(fontname, htmlname, pairs, verbose):
+def do_generate_test_html(font_basename, pairs, glyph=None, verbosity=1):
   header = r"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <style type="text/css">
-@font-face { font-family: foo; src: url("%s") }
+@font-face { font-family: svgfont; src: url("%s") }
 body { font-family: sans-serif; font-size: 24px }
-th { text-align:right; font-family:monospace }
-td { font-family: foo, sans-serif }
+#emoji span { font-family: svgfont, sans-serif }
+#panel { font-family: svgfont, sans-serif; font-size: 256px }
+#paneltitle { font-family: sans-serif; font-size: 36px }
 </style>
+<script type="text/javascript">
+function hexify(text) {
+  var surr_offset = 0x10000 - (0xd800 << 10) - 0xdc00
+  var str = new String(text.trim())
+  var len = str.length
+  var result = ""
+  for (var i = 0; i < len; ++i) {
+    var cp = str.charCodeAt(i)
+    if (cp >= 0xd800 && cp < 0xdc00 && i < len - 1) {
+      ncp = str.charCodeAt(i+1)
+      if (ncp >= 0xdc00 && ncp < 0xe000) {
+        cp = (cp << 10) + ncp + surr_offset
+        ++i;
+      }
+    }
+    result += " 0x" + cp.toString(16)
+  }
+  return result
+};
+
+function showText(event) {
+  var text = event.target.textContent
+  var p = document.getElementById('panel')
+  p.textContent = text
+  p = document.getElementById('paneltitle')
+  p.textContent = hexify(text)
+};
+
+function setup() {
+  var t = document.getElementById('emoji')
+  var tdlist = t.getElementsByTagName('span')
+  for (var i = 0, lim = tdlist.length; i < lim; ++i) {
+    var e = tdlist[i]
+    e.onmouseover = showText
+  }
+};
+</script>
 </head>"""
 
-  body_head = r"""<body>
-<p>Test for SVG glyphs in %s.
-<p>This page is for Firefox&nbsp;26 and later; it uses the "unified"
+  body_head = r"""<body onload="setup();">
+<p>Test for SVG glyphs in %s.  It uses the proposed
 <a href="http://lists.w3.org/Archives/Public/public-svgopentype/2013Jul/0003.html">SVG-in-OpenType format</a>.
-<table>"""
+View using Firefox&nbsp;26 and later.
+<div style="float:left; text-align:center; margin:0 10px">
+<div id='panel' style="margin-left:auto; margin-right:auto">%s</div>
+<div id='paneltitle' style="margin-left:auto; margin-right:auto">0x1f451</div>
+</div>
+<div id='emoji'><p>"""
 
-  table_line = r'<tr><th>%s<td>%s'
 
-  body_tail = r"""</table>
+  body_tail = r"""</div>
 </body>
 </html>
 """
 
-  lines = [header % fontname]
-  lines.append(body_head % fontname)
+  font_name = font_basename + ".woff"
+  html_name = font_basename + "_test.html"
+
+  found_initial_glyph = False
+  initial_glyph_str = None;
+  text_parts = []
   for glyphstr, _ in pairs:
     name_parts = []
-    text_parts = []
     for cp in glyphstr:
       hex_str = hex(ord(cp))
-      name_parts.append(hex_str)
-      text_parts.append('&#x%s;' % hex_str[2:])
-    name = ' '.join(name_parts)
-    text = ''.join(text_parts)
-    lines.append(table_line % (name, text))
+      name_parts.append('&#x%s;' % hex_str[2:])
+    glyph_str = ''.join(name_parts)
+
+    if not found_initial_glyph:
+      if not glyph or glyph_str == glyph:
+        initial_glyph_str = glyph_str
+        found_initial_glyph = True
+      elif not initial_glyph_str:
+        initial_glyph_str = glyph_str
+
+    text = '<span>%s</span>' % glyph_str
+    text_parts.append(text)
+
+  if verbosity and glyph and not found_initial_glyph:
+    print "Did not find glyph '%s', using initial glyph '%s'" % (glyph, initial_glyph_str)
+  elif verbosity > 1 and not glyph:
+    print "Using initial glyph '%s'" % initial_glyph_str
+
+  lines = [header % font_name]
+  lines.append(body_head % (font_name, initial_glyph_str))
+  lines.extend(text_parts) # we'll end up with space between each emoji
   lines.append(body_tail)
   output = '\n'.join(lines)
-  with open(htmlname, 'w') as fp:
+  with open(html_name, 'w') as fp:
     fp.write(output)
-  if verbose > 0:
-    print 'wrote %s for font %s' % (htmlname, fontname)
+  if verbosity:
+    print 'Wrote ' + html_name
+
+
+def do_generate_fonts(template_file, font_basename, pairs, reuse=False, verbosity=1):
+  out_woff = font_basename + '.woff'
+  if reuse and os.path.isfile(out_woff) and os.access(out_woff, os.R_OK):
+    if verbosity:
+      print 'Reusing ' + out_woff
+    return
+
+  out_ttx = font_basename + '.ttx'
+  add_svg_glyphs.add_image_glyphs(template_file, out_ttx, pairs, verbosity=verbosity)
+
+  quiet=verbosity < 2
+  font = ttx.TTFont(flavor='woff', quiet=quiet)
+  font.importXML(out_ttx, quiet=quiet)
+  font.save(out_woff)
+  if verbosity:
+    print 'Wrote ' + out_woff
+
 
 def main(argv):
   usage = """This will search for files that have image_prefix followed by one or more
       hex numbers (separated by underscore if more than one), and end in ".svg".
       For example, if image_prefix is "icons/u", then files with names like
-      "icons/u1F4A9.svg" or "icons/u1F1EF_1F1F5.svg" will be found.
-      It assumes these form the character repertoire of svg glyphs in the provided file,
-      and generates an html file to display these glyphs."""
+      "icons/u1F4A9.svg" or "icons/u1F1EF_1F1F5.svg" will be found. It generates
+      an SVG font from this, converts it to woff, and also generates an html test
+      page containing text for all the SVG glyphs."""
 
   parser = argparse.ArgumentParser(
-      description='Generate html test file for font.', epilog=usage)
-  parser.add_argument('font_file', help='font file name with extension.')
-  parser.add_argument('html_file', help='Output html file name.')
-  parser.add_argument('image_prefix', help='Location and prefix of image files.')
-  parser.add_argument('-q', '--quiet', dest='v', help='quiet operation.', default=1,
+      description='Generate font and html test file.', epilog=usage)
+  parser.add_argument('template_file', help='name of template .ttx file')
+  parser.add_argument('image_prefix', help='location and prefix of image files')
+  parser.add_argument('-i', '--include', help='include files whoses name matches this regex')
+  parser.add_argument('-e', '--exclude', help='exclude files whose name matches this regex')
+  parser.add_argument('-o', '--out_basename', help='base name of (ttx, woff, html) files to generate, '
+                      'defaults to the template base name')
+  parser.add_argument('-g', '--glyph', help='set the initial glyph text (html encoded string), '
+                      'defaults to first glyph')
+  parser.add_argument('-r', '--reuse_font', help='use existing woff font', action='store_true')
+  parser.add_argument('-q', '--quiet', dest='v', help='quiet operation', default=1,
                       action='store_const', const=0)
-  parser.add_argument('-v', '--verbose', dest='v', help='verbose operation.',
+  parser.add_argument('-v', '--verbose', dest='v', help='verbose operation',
                       action='store_const', const=2)
   args = parser.parse_args(argv)
 
-  pairs = add_svg_glyphs.collect_glyphstr_file_pairs(args.image_prefix, 'svg', args.v)
+  pairs = add_svg_glyphs.collect_glyphstr_file_pairs(
+    args.image_prefix, 'svg', include=args.include, exclude=args.exclude, verbosity=args.v)
   add_svg_glyphs.sort_glyphstr_tuples(pairs)
-  do_generate_test_html(args.font_file, args.html_file, pairs, args.v)
+
+  out_basename = args.out_basename
+  if not out_basename:
+    out_basename = args.template_file.split('.')[0] # exclude e.g. '.tmpl.ttx'
+    if args.v:
+      print "Output basename is %s." % out_basename
+  do_generate_fonts(args.template_file, out_basename, pairs, reuse=args.reuse_font, verbosity=args.v)
+  do_generate_test_html(out_basename, pairs, glyph=args.glyph, verbosity=args.v)
 
 if __name__ == '__main__':
   main(sys.argv[1:])

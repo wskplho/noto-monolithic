@@ -171,19 +171,38 @@ class FontBuilder(object):
     self.svgs.append(svg_record)
 
 
-def collect_glyphstr_file_pairs(prefix, ext, verbosity):
-  """Scan files with the given prefix and extension, and return a list of (glyphstr, filename)
-  where glyphstr is the character or ligature, and filename is the image file associated
-  with it.  The glyphstr is formed by decoding the filename (exclusive of the prefix) as a
-  sequence of hex codepoints separated by underscore."""
+def collect_glyphstr_file_pairs(prefix, ext, include=None, exclude=None, verbosity=1):
+  """Scan files with the given prefix and extension, and return a list of (glyphstr,
+  filename) where glyphstr is the character or ligature, and filename is the image file
+  associated with it.  The glyphstr is formed by decoding the filename (exclusive of the
+  prefix) as a sequence of hex codepoints separated by underscore. Include, if defined, is
+  a regex string to include only matched filenames. Exclude, if defined, is a regex string
+  to exclude matched filenames, and is applied after include."""
 
   image_files = {}
   glob_pat = "%s*.%s" % (prefix, ext)
   leading = len(prefix)
   trailing = len(ext) + 1 # include dot
-  if verbosity > 0:
+  if verbosity:
     print "Looking for images matching '%s'." % glob_pat
+  ex_count = 0
+  ex = re.compile(exclude) if exclude else None
+  inc = re.compile(include) if include else None
+  if verbosity and inc:
+    print "Including images matching '%s'." % include
+  if verbosity and ex:
+    print "Excluding images matching '%s'." % exclude
+
   for image_file in glob.glob(glob_pat):
+    if inc and not inc.search(image_file):
+      continue
+
+    if ex and ex.search(image_file):
+      if verbosity > 1:
+        print "Exclude %s" % image_file
+      ex_count += 1
+      continue
+
     codes = image_file[leading:-trailing]
     if "_" in codes:
       pieces = codes.split ("_")
@@ -192,8 +211,12 @@ def collect_glyphstr_file_pairs(prefix, ext, verbosity):
       u = unichr(int(codes, 16))
     image_files[u] = image_file
 
+  if verbosity and ex_count:
+    print "Excluded %d files." % ex_count
   if not image_files:
     raise Exception ("No image files matching '%s'." % glob_pat)
+  if verbosity:
+    print "Included %s files." % len(image_files)
   return image_files.items()
 
 
@@ -204,12 +227,13 @@ def sort_glyphstr_tuples(glyphstr_tuples):
   glyphstr_tuples.sort(key=lambda t: (len(t[0]), t[0]))
 
 
-def add_image_glyphs(in_file, out_file, pairs, verbosity):
+def add_image_glyphs(in_file, out_file, pairs, verbosity=1):
   """Add images from pairs (glyphstr, filename) to .ttx file in_file and write
   to .ttx file out_file."""
 
-  font = ttx.TTFont()
-  font.importXML(in_file)
+  quiet = verbosity < 2
+  font = ttx.TTFont(quiet=quiet)
+  font.importXML(in_file, quiet=quiet)
 
   sort_glyphstr_tuples(pairs)
 
@@ -225,8 +249,8 @@ def add_image_glyphs(in_file, out_file, pairs, verbosity):
       print "Adding glyph for U+%s" % ",".join(["%04X" % ord(char) for char in glyphstr])
     img_builder.add_from_filename(glyphstr, filename)
 
-  font.saveXML(out_file)
-  if verbosity > 0:
+  font.saveXML(out_file, quiet=quiet)
+  if verbosity:
     print "added %s images to %s" % (len(pairs), out_file)
 
 
@@ -246,14 +270,17 @@ def main(argv):
   parser.add_argument('in_file', help="Input ttx file name.")
   parser.add_argument('out_file', help="Output ttx file name.")
   parser.add_argument('image_prefix', help="Location and prefix of image files.")
+  parser.add_argument('-i', '--include', help='include files whoses name matches this regex')
+  parser.add_argument('-e', '--exclude', help='exclude files whose name matches this regex')
   parser.add_argument('--quiet', '-q', dest='v', help="quiet operation.", default=1,
                       action='store_const', const=0)
   parser.add_argument('--verbose', '-v', dest='v', help="verbose operation.",
                       action='store_const', const=2)
   args = parser.parse_args(argv)
 
-  pairs = collect_glyphstr_file_pairs(args.image_prefix, 'svg', args.v)
-  add_image_glyphs(args.in_file, args.out_file, pairs, args.v)
+  pairs = collect_glyphstr_file_pairs(args.image_prefix, 'svg', include=args.include,
+                                      exclude=args.exclude, verbosity=args.v)
+  add_image_glyphs(args.in_file, args.out_file, pairs, verbosity=args.v)
 
 
 if __name__ == '__main__':
